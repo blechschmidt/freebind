@@ -17,9 +17,9 @@ ip -6 route add local 2a00:1450:4001:81b::/64 dev lo
 ### Example
 Having set up AnyIP, the following command will bind wget's internal socket to a random address from the specified subnet:
 ```
-FREEBIND_RANDOM=2a00:1450:4001:81b::/64 LD_PRELOAD=$pwd/bin/freebind.so wget -qO- ipv6.wtfismyip.com/text
+FREEBIND_RANDOM=2a00:1450:4001:81b::/64 LD_PRELOAD=$(pwd)/bin/freebind.so wget -qO- ipv6.wtfismyip.com/text
 ```
-Note that `$pwd/bin/freebind.so` is the path to the shared object, assuming that your working directory is the git repository. Installing freebind using `make install` will cause the file to be copied to `/usr/local/lib`.
+Note that `$(pwd)/bin/freebind.so` evaluates to the path of the shared object, assuming that your working directory is the git repository. Installing freebind using `make install` will cause the file to be copied to `/usr/local/lib`.
 
 ### Notes
 The application will only work if your internet service provider provides you with a routed prefix.
