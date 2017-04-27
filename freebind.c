@@ -148,7 +148,7 @@ void freebind(int result)
 		{
 			socket_cidrs = &socket_cidrs_ipv6;
 		}
-		if(socket_cidrs->len > 0 && !bind_upon_connect)
+		if(socket_cidrs->len > 0)
 		{
 			buffer_t address;
 			if(get_random_address_from_cidr(((cidr_t**)socket_cidrs->data)[rand() % socket_cidrs->len], &address))
@@ -175,12 +175,11 @@ void freebind(int result)
 int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	int (*original_connect)(int, const struct sockaddr*, socklen_t) = dlsym(RTLD_NEXT, "connect");
-	int result = original_connect(socket, address, address_len);
 	if(bind_upon_connect)
 	{
 		freebind(socket);
 	}
-	return result;
+	return original_connect(socket, address, address_len);
 }
 
 int socket(int domain, int type, int protocol)
