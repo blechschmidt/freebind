@@ -9,7 +9,6 @@
 #include "list.h"
 #include "cidr.h"
 
-int first_run = 1;
 char *env_random;
 char *env_iface;
 char *env_bind_entrypoint;
@@ -75,14 +74,8 @@ void cleanup()
 	free_buf_array(&socket_cidrs_ipv6);
 }
 
-void initialize()
+void __attribute__((constructor)) initialize()
 {
-	if(!first_run)
-	{
-		return;
-	}
-	first_run = 0;
-
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	srand(ts.tv_sec + ts.tv_nsec);
@@ -184,7 +177,6 @@ int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 
 int socket(int domain, int type, int protocol)
 {
-	initialize();
 	int (*original_socket)(int, int, int) = dlsym(RTLD_NEXT, "socket");
 	int result = original_socket(domain, type, protocol);
 	if(!bind_upon_connect)
