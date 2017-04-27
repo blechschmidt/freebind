@@ -4,15 +4,18 @@
 #include <netinet/ip.h>
 #include <stdlib.h>
 #include <time.h>
+#include <net/if.h>
 
 #include "list.h"
 #include "cidr.h"
 
 int first_run = 1;
 char *env_random;
+char *env_iface;
+char *env_bind_entrypoint;
 buffer_t socket_cidrs_ipv4;
 buffer_t socket_cidrs_ipv6;
-
+int bind_upon_connect = 0;
 
 void get_random_bytes(uint8_t *buf, size_t len) // not cryptographically secure
 {
@@ -83,6 +86,14 @@ void initialize()
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	srand(ts.tv_sec + ts.tv_nsec);
+	
+	env_iface = getenv("FREEBIND_IFACE");
+	
+	env_bind_entrypoint = getenv("FREEBIND_ENTRYPOINT");
+	if(env_bind_entrypoint != NULL && strcasecmp("connect", env_bind_entrypoint) == 0)
+	{
+		bind_upon_connect = 1;
+	}
 
 	env_random = getenv("FREEBIND_RANDOM");
 	if(env_random == NULL)
@@ -118,11 +129,15 @@ void initialize()
 	atexit(cleanup);
 }
 
-int socket(int domain, int type, int protocol)
+void freebind(int result)
 {
-	initialize();
-	int (*original_socket)(int, int, int) = dlsym(RTLD_NEXT, "socket");
-	int result = original_socket(domain, type, protocol);
+	int domain;
+	int optlen = sizeof(int);
+	if(getsockopt(result, SOL_SOCKET, SO_DOMAIN, &domain, &optlen) != 0)
+	{
+		perror("Freebind: Failed to determine socket type");
+		return;
+	}
 	if(domain == PF_INET || domain == PF_INET6)
 	{
 		const int enable = 1;
@@ -133,15 +148,49 @@ int socket(int domain, int type, int protocol)
 		{
 			socket_cidrs = &socket_cidrs_ipv6;
 		}
-		if(socket_cidrs->len > 0)
+		if(socket_cidrs->len > 0 && !bind_upon_connect)
 		{
 			buffer_t address;
 			if(get_random_address_from_cidr(((cidr_t**)socket_cidrs->data)[rand() % socket_cidrs->len], &address))
 			{
-				bind(result, (struct sockaddr*)address.data, address.len);
+				if(bind(result, (struct sockaddr*)address.data, address.len) != 0)
+				{
+					perror("Freebind: Failed to bind to specified address");
+				}
 				free(address.data);
 			}
 		}
+		if(env_iface != NULL)
+		{
+			struct ifreq ifr;
+			snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), env_iface);
+			if(setsockopt(result, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0)
+			{
+				perror("Freebind: Failed to bind to device");
+			}
+		}
+	}
+}
+
+int connect(int socket, const struct sockaddr *address, socklen_t address_len)
+{
+	int (*original_connect)(int, const struct sockaddr*, socklen_t) = dlsym(RTLD_NEXT, "connect");
+	int result = original_connect(socket, address, address_len);
+	if(bind_upon_connect)
+	{
+		freebind(socket);
+	}
+	return result;
+}
+
+int socket(int domain, int type, int protocol)
+{
+	initialize();
+	int (*original_socket)(int, int, int) = dlsym(RTLD_NEXT, "socket");
+	int result = original_socket(domain, type, protocol);
+	if(!bind_upon_connect)
+	{
+		freebind(result);
 	}
 	return result;
 }
