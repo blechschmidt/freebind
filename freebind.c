@@ -105,7 +105,7 @@ void initialize()
 	single_list_t* cidr_list_ipv6 = single_list_new();
 	char *token;
 	char *remaining = env_random;
-	while(token = strtok_r(remaining, ", ", &remaining))
+	while((token = strtok_r(remaining, ", ", &remaining)))
 	{
 		cidr_t *cidr = safe_malloc(sizeof(*cidr));
 		if(!cidr_from_string(cidr, token))
@@ -132,7 +132,7 @@ void initialize()
 void freebind(int result)
 {
 	int domain;
-	int optlen = sizeof(int);
+	socklen_t optlen = sizeof(int);
 	if(getsockopt(result, SOL_SOCKET, SO_DOMAIN, &domain, &optlen) != 0)
 	{
 		perror("Freebind: Failed to determine socket type");
@@ -163,7 +163,7 @@ void freebind(int result)
 		if(env_iface != NULL)
 		{
 			struct ifreq ifr;
-			snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), env_iface);
+			strncpy(ifr.ifr_name, env_iface, sizeof(ifr.ifr_name));
 			if(setsockopt(result, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0)
 			{
 				perror("Freebind: Failed to bind to device");
