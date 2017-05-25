@@ -15,6 +15,8 @@ char *env_bind_entrypoint;
 buffer_t socket_cidrs_ipv4;
 buffer_t socket_cidrs_ipv6;
 int bind_upon_connect = 0;
+int (*original_connect)(int, const struct sockaddr*, socklen_t);
+int (*original_socket)(int, int, int);
 
 void get_random_bytes(uint8_t *buf, size_t len) // not cryptographically secure
 {
@@ -166,7 +168,10 @@ void freebind(int result)
 
 int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
-	int (*original_connect)(int, const struct sockaddr*, socklen_t) = dlsym(RTLD_NEXT, "connect");
+	if(!original_connect)
+	{
+		original_connect = dlsym(RTLD_NEXT, "connect");
+	}
 	if(bind_upon_connect)
 	{
 		freebind(socket);
@@ -176,7 +181,10 @@ int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 
 int socket(int domain, int type, int protocol)
 {
-	int (*original_socket)(int, int, int) = dlsym(RTLD_NEXT, "socket");
+	if(!original_socket)
+	{
+		original_socket = dlsym(RTLD_NEXT, "socket");
+	}
 	int result = original_socket(domain, type, protocol);
 	if(!bind_upon_connect)
 	{
