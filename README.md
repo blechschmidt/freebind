@@ -17,7 +17,7 @@ ip -6 route add local 2a00:1450:4001:81b::/64 dev lo
 ### Example
 Having set up AnyIP, the following command will bind wget's internal socket to a random address from the specified subnet:
 ```
-FREEBIND_RANDOM=2a00:1450:4001:81b::/64 freebind wget -qO- ipv6.wtfismyip.com/text
+freebind -r 2a00:1450:4001:81b::/64 wget -qO- ipv6.wtfismyip.com/text
 ```
 
 ### Notes
