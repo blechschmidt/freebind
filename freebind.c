@@ -68,7 +68,7 @@ void free_buf_array(buffer_t *arr)
 	}
 }
 
-void cleanup()
+void __attribute__((destructor))  cleanup()
 {
 	free_buf_array(&socket_cidrs_ipv4);
 	free_buf_array(&socket_cidrs_ipv6);
@@ -119,7 +119,6 @@ void __attribute__((constructor)) initialize()
 	single_list_free(cidr_list_ipv4);
 	socket_cidrs_ipv6 = single_list_to_array(cidr_list_ipv6);
 	single_list_free(cidr_list_ipv6);
-	atexit(cleanup);
 }
 
 void freebind(int result)
