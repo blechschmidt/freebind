@@ -2,7 +2,8 @@ SELF := $(lastword $(MAKEFILE_LIST)) # Source: http://stackoverflow.com/a/271329
 
 default:
 	mkdir -p bin
-	gcc -g -shared -fPIC freebind.c -o bin/freebind.so -ldl
+	gcc -shared -fPIC freebind.c -o bin/freebind.so -ldl
+	gcc preloader.c -o bin/freebind
 tests:
 	mkdir -p bin
 	gcc tests.c -o bin/tests
@@ -11,3 +12,4 @@ clean:
 install:
 	@$(MAKE) -f $(SELF) default
 	cp bin/freebind.so /usr/local/lib/
+	cp bin/freebind /usr/local/bin/
