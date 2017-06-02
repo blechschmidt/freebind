@@ -18,49 +18,6 @@ int bind_upon_connect = 0;
 int (*original_connect)(int, const struct sockaddr*, socklen_t);
 int (*original_socket)(int, int, int);
 
-void get_random_bytes(uint8_t *buf, size_t len) // not cryptographically secure
-{
-	for(size_t i = 0; i < len; i++)
-	{
-		buf[i] = rand();
-	}
-}
-
-int get_random_address_from_cidr(cidr_t *cidr, buffer_t *buf)
-{
-	if(cidr->protocol == 4)
-	{
-		struct sockaddr_in *ip4addr = safe_malloc(sizeof(*ip4addr));
-		ip4addr->sin_family = AF_INET;
-		ip4addr->sin_port = 0;
-		char random[4];
-		get_random_bytes(random, sizeof(random));
-		bitwise_clear(random, 0, cidr->mask);
-		bitwise_xor((uint8_t*)&ip4addr->sin_addr.s_addr, random, cidr->prefix, sizeof(random));
-		buf->len = sizeof(*ip4addr);
-		buf->data = ip4addr;
-	}
-	else if(cidr->protocol == 6)
-	{
-		struct sockaddr_in6 *ip6addr = safe_malloc(sizeof(*ip6addr));
-		bzero(ip6addr, sizeof(*ip6addr));
-		ip6addr->sin6_family = AF_INET6;
-		ip6addr->sin6_port = 0;
-		char random[16];
-		get_random_bytes(random, sizeof(random));
-		bitwise_clear(random, 0, cidr->mask);
-		bitwise_xor((uint8_t*)&ip6addr->sin6_addr.s6_addr, random, cidr->prefix, sizeof(random));
-		buf->len = sizeof(*ip6addr);
-		buf->data = ip6addr;
-	}
-	else
-	{
-		buf->len = 0;
-		buf->data = NULL;
-		return 0;
-	}
-	return 1;
-}
 
 void free_buf_array(buffer_t *arr)
 {
