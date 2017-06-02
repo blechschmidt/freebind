@@ -34,7 +34,7 @@ packetrand 0 2a00:1450:4001:81b::/64
 ```
 This will cause `packetrand` to rewrite the source address of outgoing packets to a random address from the specified prefix. Because incoming reply packets will be sent to the random source address, we need `iptables` to translate the address back in order for the packet to be passed to the origin socket again, assuming that the socket is bound to `2a00:1450:4001:81b::`:
 ```
-ip6tables -t nat -A PREROUTING -p udp --dport 53 -j DNAT --to-destination [2a00:1450:4001:81b::]:53
+ip6tables -t nat -A PREROUTING -p udp --dport 53 -j DNAT --to-destination [2a00:1450:4001:81b::]
 ```
 
 ### Limitations
