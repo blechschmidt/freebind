@@ -21,6 +21,66 @@ int fd;
 int rv;
 char buf[4096] __attribute__ ((aligned));
 
+
+// Source: http://www.microhowto.info/howto/calculate_an_internet_protocol_checksum_in_c.html
+uint16_t ip_checksum(void* vdata,size_t length)
+{
+    // Cast the data pointer to one that can be indexed.
+    char* data=(char*)vdata;
+
+    // Initialise the accumulator.
+    uint64_t acc=0xffff;
+
+    // Handle any partial block at the start of the data.
+    unsigned int offset=((uintptr_t)data)&3;
+    if (offset)
+	{
+        size_t count=4-offset;
+        if (count>length) count=length;
+        uint32_t word=0;
+        memcpy(offset+(char*)&word,data,count);
+        acc+=ntohl(word);
+        data+=count;
+        length-=count;
+    }
+
+    // Handle any complete 32-bit blocks.
+    char* data_end=data+(length&~3);
+    while (data!=data_end)
+    {
+        uint32_t word;
+        memcpy(&word,data,4);
+        acc+=ntohl(word);
+        data+=4;
+    }
+    length&=3;
+
+    // Handle any partial block at the end of the data.
+    if (length)
+    {
+        uint32_t word=0;
+        memcpy(&word,data,length);
+        acc+=ntohl(word);
+    }
+
+    // Handle deferred carries.
+    acc=(acc&0xffffffff)+(acc>>32);
+    while (acc>>16)
+    {
+        acc=(acc&0xffff)+(acc>>16);
+    }
+
+    // If the data began at an odd byte address
+    // then reverse the byte order to compensate.
+    if (offset&1)
+    {
+        acc=((acc&0xff00)>>8)|((acc&0x00ff)<<8);
+    }
+
+    // Return the checksum in network byte order.
+    return htons(~acc);
+}
+
 static uint32_t print_pkt (struct nfq_data *tb, int *size)
 {
     int id = 0;
@@ -46,7 +106,7 @@ static uint32_t print_pkt (struct nfq_data *tb, int *size)
     {
         *size = packet_len;
         memcpy(packetbuf, packet_data, packet_len);
-        if(proto == 0x800 && packet_len >= 16 && cidrs_ipv4.len > 0)
+        if(proto == 0x800 && packet_len >= 20 && cidrs_ipv4.len > 0)
         {
             cidr_t *cidr = ((cidr_t**)cidrs_ipv4.data)[rand() % cidrs_ipv4.len];
             char random[4];
@@ -54,13 +114,25 @@ static uint32_t print_pkt (struct nfq_data *tb, int *size)
             bitwise_clear(random, 0, cidr->mask);
             bitwise_xor(packetbuf + 12, random, cidr->prefix, sizeof(random));
         }
-        else if(proto == 0x86dd && packet_len >= 24 && cidrs_ipv6.len > 0)
+        else if(proto == 0x86dd && packet_len >= 40 && cidrs_ipv6.len > 0)
         {
             cidr_t *cidr = ((cidr_t**)cidrs_ipv6.data)[rand() % cidrs_ipv6.len];
             char random[16];
             get_random_bytes(random, sizeof(random));
             bitwise_clear(random, 0, cidr->mask);
             bitwise_xor(packetbuf + 8, random, cidr->prefix, sizeof(random));
+            if(packetbuf[6] == 17 && packet_len >= 48) // clear udp checksum
+            {
+                char pseudo_hdr[sizeof(packetbuf)];
+                packetbuf[46] = 0;
+                packetbuf[47] = 0;
+                bzero(pseudo_hdr, sizeof(pseudo_hdr));
+                memcpy(pseudo_hdr, packetbuf + 8, 32);
+                memcpy(pseudo_hdr + 34, packetbuf + 44, 2);
+                pseudo_hdr[39] = 17;
+                memcpy(pseudo_hdr + 40, packetbuf + 40, packet_len - 40);
+                *((uint16_t*)(packetbuf + 46)) = ip_checksum(pseudo_hdr, packet_len);
+            }
         }
     }
 
