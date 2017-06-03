@@ -21,7 +21,7 @@ struct nfq_q_handle *qh;
 int fd;
 int rv;
 char buf[4096] __attribute__ ((aligned));
-
+char addr[16];
 
 // Source: http://www.microhowto.info/howto/calculate_an_internet_protocol_checksum_in_c.html
 uint16_t ip_checksum(void* vdata,size_t length)
@@ -35,7 +35,7 @@ uint16_t ip_checksum(void* vdata,size_t length)
     // Handle any partial block at the start of the data.
     unsigned int offset=((uintptr_t)data)&3;
     if (offset)
-	{
+    {
         size_t count=4-offset;
         if (count>length) count=length;
         uint32_t word=0;
@@ -94,6 +94,7 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
     uint16_t proto;
     size_t packet_len;
     unsigned char *packet_data;
+    int indev = nfq_get_indev(tb);
 
     ph = nfq_get_msg_packet_hdr(tb);
     if(!ph)
@@ -102,44 +103,36 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
     }
     id = ntohl(ph->packet_id);
     proto = ntohs(ph->hw_protocol);
-    if(proto != 0x86dd && proto != 0x800)
+    if(proto != 0x86dd)
     {
         return id;
     }
-    
     packet_len = nfq_get_payload(tb, &packet_data);
-    if (packet_len >= 0 && packet_len <= sizeof(packetbuf))
+    if (packet_len >= 48 && packet_len <= sizeof(packetbuf) && packet_data[6] == 17)
     {
         *size = packet_len;
         memcpy(packetbuf, packet_data, packet_len);
-        if(proto == 0x800 && packet_len >= 20 && cidrs_ipv4.len > 0)
-        {
-            cidr_t *cidr = ((cidr_t**)cidrs_ipv4.data)[rand() % cidrs_ipv4.len];
-            char random[4];
-            get_random_bytes(random, sizeof(random));
-            bitwise_clear(random, 0, cidr->mask);
-            bitwise_xor(packetbuf + 12, random, cidr->prefix, sizeof(random));
-        }
-        else if(proto == 0x86dd && packet_len >= 40 && cidrs_ipv6.len > 0)
+        if(!indev)
         {
             cidr_t *cidr = ((cidr_t**)cidrs_ipv6.data)[rand() % cidrs_ipv6.len];
-            char random[16];
+            uint8_t random[16];
             get_random_bytes(random, sizeof(random));
             bitwise_clear(random, 0, cidr->mask);
             bitwise_xor(packetbuf + 8, random, cidr->prefix, sizeof(random));
-            if(packetbuf[6] == 17 && packet_len >= 48) // clear udp checksum
-            {
-                char pseudo_hdr[sizeof(packetbuf)];
-                packetbuf[46] = 0;
-                packetbuf[47] = 0;
-                bzero(pseudo_hdr, sizeof(pseudo_hdr));
-                memcpy(pseudo_hdr, packetbuf + 8, 32);
-                memcpy(pseudo_hdr + 34, packetbuf + 44, 2);
-                pseudo_hdr[39] = 17;
-                memcpy(pseudo_hdr + 40, packetbuf + 40, packet_len - 40);
-                *((uint16_t*)(packetbuf + 46)) = ip_checksum(pseudo_hdr, packet_len);
-            }
         }
+        else
+        {
+            memcpy(packetbuf + 24, addr, sizeof(addr));
+        }
+        uint8_t pseudo_hdr[sizeof(packetbuf)];
+        packetbuf[46] = 0;
+        packetbuf[47] = 0;
+        bzero(pseudo_hdr, sizeof(pseudo_hdr));
+        memcpy(pseudo_hdr, packetbuf + 8, 32);
+        memcpy(pseudo_hdr + 34, packetbuf + 44, 2);
+        pseudo_hdr[39] = 17;
+        memcpy(pseudo_hdr + 40, packetbuf + 40, packet_len - 40);
+        *((uint16_t*)(packetbuf + 46)) = ip_checksum(pseudo_hdr, packet_len);
     }
 
     return id;
@@ -148,28 +141,32 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
 
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data)
 {
-    int size = 0;
+    int size = -1;
     u_int32_t id = handle_pkt(nfa, &size);
-    return nfq_set_verdict(qh, id, NF_ACCEPT, size, packetbuf);
+    return nfq_set_verdict(qh, id, NF_ACCEPT, size, size >= 0 ? packetbuf : NULL);
 }
 
 void print_help(char *name)
 {
-    fprintf(stderr, "Usage: %s <queue-num> cidr0 [ cidr1 [ ...cidrN ] ]\n", name);
+    fprintf(stderr, "Usage: %s <queue-num> source rand_cidr0 [ ...rand_cidrN ]\n", name);
 }
 
 int main(int argc, char **argv)
 {
     single_list_t* cidr_list_ipv4 = single_list_new();
     single_list_t* cidr_list_ipv6 = single_list_new();
-
-    if(argc < 3)
+    if(argc < 4)
     {
         print_help(argv[0]);
         return EXIT_FAILURE;
     }
     int queue_num = atoi(argv[1]);
-    for(int i = 2; i < argc; i++)
+    if(inet_pton(AF_INET6, argv[2], addr) != 1)
+    {
+        fprintf(stderr, "Invalid address\n");
+        exit(EXIT_FAILURE);
+    }
+    for(int i = 3; i < argc; i++)
     {
         cidr_t *cidr = safe_malloc(sizeof(*cidr));
         if(!cidr_from_string(cidr, argv[i]))
@@ -178,11 +175,15 @@ int main(int argc, char **argv)
             free(cidr);
             free(cidr_list_ipv4);
             free(cidr_list_ipv6);
-            return EXIT_FAILURE;
+            exit(EXIT_FAILURE);
         }
         if(cidr->protocol == 4)
         {
-            single_list_push_back(cidr_list_ipv4, cidr);
+            fprintf(stderr, "IPv4 is not supported.\n");
+            free(cidr);
+            free(cidr_list_ipv4);
+            free(cidr_list_ipv6);
+            exit(EXIT_FAILURE);
         }
         else if(cidr->protocol == 6)
         {
@@ -211,7 +212,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    qh = nfq_create_queue(h,  0, &cb, NULL);
+    qh = nfq_create_queue(h, queue_num, &cb, NULL);
     if (!qh) {
         fprintf(stderr, "error during nfq_create_queue()\n");
         exit(1);

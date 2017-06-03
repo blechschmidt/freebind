@@ -2,9 +2,9 @@ SELF := $(lastword $(MAKEFILE_LIST)) # Source: http://stackoverflow.com/a/271329
 
 default:
 	mkdir -p bin
-	gcc -shared -fPIC freebind.c -o bin/freebind.so -ldl
-	gcc preloader.c -o bin/freebind
-	gcc packetrand.c -o bin/packetrand -lnetfilter_queue
+	gcc -Wall -shared -fPIC freebind.c -o bin/freebind.so -ldl
+	gcc -Wall preloader.c -o bin/freebind
+	gcc -Wall packetrand.c -o bin/packetrand -lnetfilter_queue
 tests:
 	mkdir -p bin
 	gcc tests.c -o bin/tests

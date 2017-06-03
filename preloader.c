@@ -18,7 +18,6 @@ int main(int argc, char **argv)
 	char buf[8192];
 	int first_arg = 1;
 	char *orig_env = getenv("LD_PRELOAD");
-	char *random_env;
 
 	if(argc < 2)
 	{

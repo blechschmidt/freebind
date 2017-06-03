@@ -55,7 +55,6 @@ int cidr_from_string(cidr_t *cidr, char *str)
 	}
 
 	char *remaining = str;
-	char *token = str;
 	strtok_r(remaining, "/", &remaining);
 	if(ipv4_str_to_buf(str, cidr->prefix))
 	{
@@ -79,7 +78,7 @@ int cidr_from_string(cidr_t *cidr, char *str)
 			return 0;
 		}
 		int mask = atoi(remaining);
-		if(cidr->protocol == 4 && mask > 32 || cidr->protocol == 6 && mask > 128)
+		if((cidr->protocol == 4 && mask > 32) || (cidr->protocol == 6 && mask > 128))
 		{
 			return 0;
 		}
@@ -104,7 +103,7 @@ int get_random_address_from_cidr(cidr_t *cidr, buffer_t *buf)
 		struct sockaddr_in *ip4addr = safe_malloc(sizeof(*ip4addr));
 		ip4addr->sin_family = AF_INET;
 		ip4addr->sin_port = 0;
-		char random[4];
+		uint8_t random[4];
 		get_random_bytes(random, sizeof(random));
 		bitwise_clear(random, 0, cidr->mask);
 		bitwise_xor((uint8_t*)&ip4addr->sin_addr.s_addr, random, cidr->prefix, sizeof(random));
@@ -117,7 +116,7 @@ int get_random_address_from_cidr(cidr_t *cidr, buffer_t *buf)
 		bzero(ip6addr, sizeof(*ip6addr));
 		ip6addr->sin6_family = AF_INET6;
 		ip6addr->sin6_port = 0;
-		char random[16];
+		uint8_t random[16];
 		get_random_bytes(random, sizeof(random));
 		bitwise_clear(random, 0, cidr->mask);
 		bitwise_xor((uint8_t*)&ip6addr->sin6_addr.s6_addr, random, cidr->prefix, sizeof(random));
