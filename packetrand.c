@@ -217,6 +217,9 @@ int main(int argc, char **argv)
     }
 
     fd = nfq_fd(h);
+    
+    fprintf(stderr, "Detach from terminal. Will keep running in the background.\n");
+    daemon(1, 0);
 
     while ((rv = recv(fd, buf, sizeof(buf), 0)) && rv >= 0) {
         nfq_handle_packet(h, buf, rv);
