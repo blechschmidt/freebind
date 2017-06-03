@@ -1,12 +1,13 @@
 # Freebind
 Make use of any IP address from a prefix that is routed to your machine.
 
-## Background
 With the introduction of IPv6 single machines often get prefixes with more than one IP address assigned. However, without AnyIP and socket freebinding, many applications lack support to dynamically bind to arbitrary unconfigured addresses within these prefixes. Freebind enables the [IP\_FREEBIND](http://man7.org/linux/man-pages/man7/ip.7.html) socket option by hooking into `socket` library calls using `LD_PRELOAD`.
+
+IPv6 services employing rate limiting often ban per /128 or per /64 in order to minimize collateral damage. If you have a statically routed prefix that is smaller than the prefix being banned, you can make use of freebind, which will bind sockets to random IP addresses from specified prefixes.
 
 ## Usage
 ### Installing
-Clone and `cd` into the git repository, then run `make install`.
+Clone and `cd` into the git repository, then run `make install`. In order for `packetrand` to be built successfully, `libnetfilter-queue-dev` is required.
 ### Setup
 Assume your ISP has assigned the subnet `2a00:1450:4001:81b::/64` to your server. In order to make use of freebinding, you first need to configure the [Linux AnyIP kernel feature](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=ab79ad14a2d51e95f0ac3cef7cd116a57089ba82) in order to be able to bind a socket to an arbitrary IP address from this subnet as follows:
 
