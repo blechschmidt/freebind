@@ -6,6 +6,7 @@
 #include <linux/types.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
+#include <signal.h>
 
 #include "buffers.h"
 #include "list.h"
@@ -81,7 +82,12 @@ uint16_t ip_checksum(void* vdata,size_t length)
     return htons(~acc);
 }
 
-static uint32_t print_pkt (struct nfq_data *tb, int *size)
+void handle_sigint(int signal)
+{
+    exit(EXIT_FAILURE);
+}
+
+static uint32_t handle_pkt (struct nfq_data *tb, int *size)
 {
     int id = 0;
     struct nfqnl_msg_packet_hdr *ph;
@@ -143,7 +149,7 @@ static uint32_t print_pkt (struct nfq_data *tb, int *size)
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data)
 {
     int size = 0;
-    u_int32_t id = print_pkt(nfa, &size);
+    u_int32_t id = handle_pkt(nfa, &size);
     return nfq_set_verdict(qh, id, NF_ACCEPT, size, packetbuf);
 }
 
@@ -219,10 +225,16 @@ int main(int argc, char **argv)
     fd = nfq_fd(h);
     
     fprintf(stderr, "Detach from terminal. Will keep running in the background.\n");
+    signal(SIGINT, handle_sigint);
     daemon(1, 0);
 
-    while ((rv = recv(fd, buf, sizeof(buf), 0)) && rv >= 0) {
-        nfq_handle_packet(h, buf, rv);
+    while (1)
+    {
+        rv = recv(fd, buf, sizeof(buf), 0);
+        if(rv >= 0)
+        {
+            nfq_handle_packet(h, buf, rv);
+        }
     }
 
     nfq_destroy_queue(qh);
