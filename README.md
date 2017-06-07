@@ -29,7 +29,7 @@ The `freebind` program is only suitable for assigning one IP address per socket.
 Imagine you want to randomize source addresses for DNS resolving. The following command has `iptables` pass outgoing DNS packets to the `packetrand` userspace program:
 ```
 ip6tables -I OUTPUT -j NFQUEUE -p udp --dport 53 --queue-num 0 --queue-bypass
-ip6tables -I INPUT -j NFQUEUE -p udp --dport 53 --queue-num 0 --queue-bypass
+ip6tables -I INPUT -j NFQUEUE -p udp --sport 53 --queue-num 0 --queue-bypass
 ```
 Afterwards, the `packetrand` daemon could be invoked as follows, where 0 is the netfilter queue number:
 ```
