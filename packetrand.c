@@ -7,6 +7,7 @@
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <signal.h>
+#include <time.h>
 
 #include "buffers.h"
 #include "list.h"
@@ -14,6 +15,7 @@
 
 int queue_num;
 unsigned char packetbuf[4096];
+uint8_t pseudo_hdr[sizeof(packetbuf)];
 buffer_t cidrs_ipv4;
 buffer_t cidrs_ipv6;
 struct nfq_handle *h;
@@ -22,6 +24,8 @@ int fd;
 int rv;
 char buf[4096] __attribute__ ((aligned));
 char addr[16];
+int rand_port = 0;
+uint16_t orig_port;
 
 // Source: http://www.microhowto.info/howto/calculate_an_internet_protocol_checksum_in_c.html
 uint16_t ip_checksum(void* vdata,size_t length)
@@ -103,36 +107,72 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
     }
     id = ntohl(ph->packet_id);
     proto = ntohs(ph->hw_protocol);
-    if(proto != 0x86dd)
+    if(proto != 0x86dd && proto != 0x0800)
     {
         return id;
     }
     packet_len = nfq_get_payload(tb, &packet_data);
-    if (packet_len >= 48 && packet_len <= sizeof(packetbuf) && packet_data[6] == 17)
+    if (proto == 0x86dd && packet_len >= 48 && packet_len <= sizeof(packetbuf) && packet_data[6] == 17)
     {
+        if(cidrs_ipv6.len <= 0 && !rand_port)
+        {
+            return id;
+        }
         *size = packet_len;
         memcpy(packetbuf, packet_data, packet_len);
-        if(!indev)
+        if(cidrs_ipv6.len > 0)
         {
-            cidr_t *cidr = ((cidr_t**)cidrs_ipv6.data)[rand() % cidrs_ipv6.len];
-            uint8_t random[16];
-            get_random_bytes(random, sizeof(random));
-            bitwise_clear(random, 0, cidr->mask);
-            bitwise_xor(packetbuf + 8, random, cidr->prefix, sizeof(random));
+            if(!indev)
+            {
+                cidr_t *cidr = ((cidr_t**)cidrs_ipv6.data)[rand() % cidrs_ipv6.len];
+                uint8_t random[16];
+                get_random_bytes(random, sizeof(random));
+                bitwise_clear(random, 0, cidr->mask);
+                bitwise_xor(packetbuf + 8, random, cidr->prefix, sizeof(random));
+            }
+            else
+            {
+                memcpy(packetbuf + 24, addr, sizeof(addr));
+            }
         }
-        else
+        if(rand_port)
         {
-            memcpy(packetbuf + 24, addr, sizeof(addr));
+            if(!indev)
+            {
+                uint16_t port = rand() % (0x10000 - 1024) + 1024;
+                *((uint16_t*)(packetbuf + 40)) = htons(port);
+            }
+            else
+            {
+                uint16_t port = orig_port;
+                *((uint16_t*)(packetbuf + 42)) = htons(port);
+            }
         }
-        uint8_t pseudo_hdr[sizeof(packetbuf)];
         packetbuf[46] = 0;
         packetbuf[47] = 0;
-        bzero(pseudo_hdr, sizeof(pseudo_hdr));
+        bzero(pseudo_hdr, 40);
         memcpy(pseudo_hdr, packetbuf + 8, 32);
         memcpy(pseudo_hdr + 34, packetbuf + 44, 2);
         pseudo_hdr[39] = 17;
         memcpy(pseudo_hdr + 40, packetbuf + 40, packet_len - 40);
         *((uint16_t*)(packetbuf + 46)) = ip_checksum(pseudo_hdr, packet_len);
+    }
+    else if(proto == 0x0800 && packet_len >= 28 && packet_len <= sizeof(packetbuf) && packet_data[9] == 17)
+    {
+        if(!rand_port)
+        {
+            return id;
+        }
+        memcpy(packetbuf, packet_data, packet_len);
+        uint8_t ip_hl = (packet_data[0] & 0xF) * 4;
+        if(packet_len <= ip_hl + 8 || ip_hl < 20)
+        {
+            return id;
+        }
+        // IP checksum
+        packetbuf[10] = 0;
+        packetbuf[11] = 0;
+        *((uint16_t*)(packetbuf + 10)) = ip_checksum(pseudo_hdr, ip_hl);
     }
 
     return id;
@@ -148,11 +188,12 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *
 
 void print_help(char *name)
 {
-    fprintf(stderr, "Usage: %s <queue-num> source rand_cidr0 [ ...rand_cidrN ]\n", name);
+    fprintf(stderr, "Usage: %s <queue-num> [-r <orig_port>] [source rand_cidr0 [ ...rand_cidrN ]]\n", name);
 }
 
 int main(int argc, char **argv)
 {
+    srand(time(NULL));
     single_list_t* cidr_list_ipv4 = single_list_new();
     single_list_t* cidr_list_ipv6 = single_list_new();
     if(argc < 4)
@@ -161,12 +202,25 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     int queue_num = atoi(argv[1]);
-    if(inet_pton(AF_INET6, argv[2], addr) != 1)
+    size_t addr_start_arg = 2;
+    if(strcmp(argv[2], "-r") == 0)
+    {
+            rand_port = 1;
+            int oport = atoi(argv[3]);
+            if(oport <= 0 || oport > 0xFFFF)
+            {
+                fprintf(stderr, "Invalid original port.\n");
+                exit(EXIT_FAILURE);
+            }
+            orig_port = oport;
+            addr_start_arg += 2;
+    }
+    if(addr_start_arg < argc && inet_pton(AF_INET6, argv[addr_start_arg], addr) != 1 && inet_pton(AF_INET, argv[addr_start_arg], addr) != 1)
     {
         fprintf(stderr, "Invalid address\n");
         exit(EXIT_FAILURE);
     }
-    for(int i = 3; i < argc; i++)
+    for(int i = addr_start_arg + 1; i < argc; i++)
     {
         cidr_t *cidr = safe_malloc(sizeof(*cidr));
         if(!cidr_from_string(cidr, argv[i]))
@@ -179,7 +233,7 @@ int main(int argc, char **argv)
         }
         if(cidr->protocol == 4)
         {
-            fprintf(stderr, "IPv4 is not supported.\n");
+            fprintf(stderr, "IPv4 address rewriting is not supported.\n");
             free(cidr);
             free(cidr_list_ipv4);
             free(cidr_list_ipv6);
