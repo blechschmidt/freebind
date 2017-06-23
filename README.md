@@ -37,6 +37,13 @@ packetrand 0 2a00:1450:4001:81b:: 2a00:1450:4001:81b::/64
 ```
 This will cause `packetrand` to rewrite the source address of outgoing packets to a random address from the specified prefix and translate back the destination address of incoming packets to `2a00:1450:4001:81b::` which is supposed to be the address which the socket is bound to.
 
+#### Source port randomization
+You can use the `-r` switch in order to randomize source ports per packet.
+```
+packetrand 0 -r 53
+```
+In this case, all outgoing UDP packets that are handled by the queue have their source port randomized and 53 is the port number for incoming packets to be rewritten to.
+
 #### Limitations
 - IPv6 extension headers are not yet supported
 
