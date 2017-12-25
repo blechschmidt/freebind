@@ -163,16 +163,65 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
         {
             return id;
         }
-        memcpy(packetbuf, packet_data, packet_len);
         uint8_t ip_hl = (packet_data[0] & 0xF) * 4;
-        if(packet_len <= ip_hl + 8 || ip_hl < 20)
+        if(packet_len < ip_hl + 8 || ip_hl < 20)
         {
             return id;
         }
+        memcpy(packetbuf, packet_data, packet_len);
+        if(cidrs_ipv4.len > 0)
+        {
+            if(!indev)
+            {
+                cidr_t *cidr = ((cidr_t**)cidrs_ipv4.data)[rand() % cidrs_ipv4.len];
+                uint8_t random[4];
+                get_random_bytes(random, sizeof(random));
+                bitwise_clear(random, 0, cidr->mask);
+                bitwise_xor(packetbuf + 12, random, cidr->prefix, sizeof(random));
+            }
+            else
+            {
+                memcpy(packetbuf + 16, addr, 4);
+            }
+        }
+        if(rand_port)
+        {
+            if(!indev)
+            {
+                uint16_t port = rand() % (0x10000 - 1024) + 1024;
+                *((uint16_t*)(packetbuf + ip_hl)) = htons(port);
+            }
+            else
+            {
+                uint16_t port = orig_port;
+                *((uint16_t*)(packetbuf + ip_hl + 2)) = htons(port);
+            }
+        }
+
         // IP checksum
         packetbuf[10] = 0;
         packetbuf[11] = 0;
-        *((uint16_t*)(packetbuf + 10)) = ip_checksum(pseudo_hdr, ip_hl);
+        *((uint16_t*)(packetbuf + 10)) = ip_checksum(packetbuf, ip_hl);
+
+        // UDP checksum
+        uint16_t udp_len = ntohs(*((uint16_t*)(packetbuf + ip_hl + 4)));
+        if(packet_len != ip_hl + udp_len || udp_len < 8)
+        {
+            return id;
+        }
+        
+        *size = packet_len;
+        memcpy(pseudo_hdr, packetbuf + 12, 8);
+        pseudo_hdr[8] = 0;
+        pseudo_hdr[9] = 17;
+        pseudo_hdr[10] = packetbuf[ip_hl + 4];
+        pseudo_hdr[11] = packetbuf[ip_hl + 5];
+        packetbuf[ip_hl + 6] = 0;
+        packetbuf[ip_hl + 7] = 0;
+        memcpy(pseudo_hdr + 12, packetbuf + ip_hl, udp_len);
+        *((uint16_t*)(packetbuf + ip_hl + 6)) = ip_checksum(pseudo_hdr, 12 + udp_len);
+
+
     }
 
     return id;
@@ -233,11 +282,12 @@ int main(int argc, char **argv)
         }
         if(cidr->protocol == 4)
         {
-            fprintf(stderr, "IPv4 address rewriting is not supported.\n");
+            /*fprintf(stderr, "IPv4 address rewriting is not supported.\n");
             free(cidr);
             free(cidr_list_ipv4);
             free(cidr_list_ipv6);
-            exit(EXIT_FAILURE);
+            exit(EXIT_FAILURE);*/
+            single_list_push_back(cidr_list_ipv4, cidr);
         }
         else if(cidr->protocol == 6)
         {
