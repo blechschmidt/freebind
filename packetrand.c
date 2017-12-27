@@ -159,7 +159,7 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
     }
     else if(proto == 0x0800 && packet_len >= 28 && packet_len <= sizeof(packetbuf) && packet_data[9] == 17)
     {
-        if(!rand_port)
+        if(cidrs_ipv4.len <= 0 && !rand_port)
         {
             return id;
         }
