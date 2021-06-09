@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <time.h>
 
+#include <stdint.h>
 #include "buffers.h"
 #include "list.h"
 #include "cidr.h"
@@ -231,7 +232,7 @@ static uint32_t handle_pkt (struct nfq_data *tb, int *size)
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data)
 {
     int size = -1;
-    u_int32_t id = handle_pkt(nfa, &size);
+    uint32_t id = handle_pkt(nfa, &size);
     return nfq_set_verdict(qh, id, NF_ACCEPT, size, size >= 0 ? packetbuf : NULL);
 }
 
