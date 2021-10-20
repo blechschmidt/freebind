@@ -1,7 +1,7 @@
 # Freebind
 Make use of any IP address from a prefix that is routed to your machine.
 
-With the introduction of IPv6 single machines often get prefixes with more than one IP address assigned. However, without AnyIP and socket freebinding, many applications lack support to dynamically bind to arbitrary unconfigured addresses within these prefixes. Freebind enables the [IP\_FREEBIND](http://man7.org/linux/man-pages/man7/ip.7.html) socket option by hooking into `socket` library calls using `LD_PRELOAD`.
+With the introduction of IPv6, single machines often get prefixes with more than one IP address assigned. However, without AnyIP and socket freebinding, many applications lack support to dynamically bind to arbitrary unconfigured addresses within these prefixes. Freebind enables the [IP\_FREEBIND](http://man7.org/linux/man-pages/man7/ip.7.html) socket option by hooking into `socket` library calls using `LD_PRELOAD`.
 
 IPv6 services employing rate limiting often ban per /128 or per /64 in order to minimize collateral damage. If you have a statically routed prefix that is smaller than the prefix being banned, you can make use of freebind, which will bind sockets to random IP addresses from specified prefixes.
 
