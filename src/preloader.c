@@ -24,6 +24,7 @@ int main(int argc, char **argv)
 	char *orig_env = getenv("LD_PRELOAD");
 	int opt = 0;
 	int option_index = 0;
+	size_t buflen = 0;
 
 	static struct option long_options[] =
 	{
@@ -37,17 +38,21 @@ int main(int argc, char **argv)
 	}
 
 	buf[0] = 0;
-
+	opterr = 0;
 	while((opt = getopt_long(argc, argv, "r:", long_options, &option_index)) != -1)
 	{
 		switch(opt)
 		{
 			 case 'r':
-				 size_t buflen = strlen(buf);
+				 buflen = strlen(buf);
 				 snprintf(buf + buflen, sizeof(buf) - buflen, "%s ", optarg);
 				 break;
+			default:
+				 optind -= 1;
+				 goto endwhile;
 		}
 	}
+endwhile:
 
 	if(optind >= argc)
 	{
@@ -65,8 +70,8 @@ int main(int argc, char **argv)
 	setenv("LD_PRELOAD", buf, 1);
 
 	execvp(argv[optind], &argv[optind]);
-	snprintf(buf, sizeof(buf), "Failed to open program \"%s\"", argv[1]);
+	snprintf(buf, sizeof(buf), "Failed to open program \"%s\"", argv[optind]);
 	buf[sizeof(buf) - 1] = 0;
 	perror(buf);
-	return help(argv[0]);
+	return help(argc > 0 ? argv[0] : "freebind");
 }

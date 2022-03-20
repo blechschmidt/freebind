@@ -4,7 +4,7 @@ default:
 	mkdir -p bin
 	gcc -Wall -shared -fPIC src/freebind.c -o bin/freebind.so -ldl
 	gcc -Wall src/preloader.c -o bin/freebind
-	gcc -Wall src/packetrand.c -o bin/packetrand -lnetfilter_queue
+	-gcc -Wall src/packetrand.c -o bin/packetrand -lnetfilter_queue
 tests:
 	mkdir -p bin
 	gcc src/tests.c -o bin/tests
