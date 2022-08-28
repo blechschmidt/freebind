@@ -9,6 +9,7 @@
 #include "list.h"
 #include "cidr.h"
 
+int type_filter = 0;
 char *env_iface;
 buffer_t socket_cidrs_ipv4;
 buffer_t socket_cidrs_ipv6;
@@ -41,6 +42,15 @@ void __attribute__((constructor)) initialize()
 	srand(ts.tv_sec + ts.tv_nsec);
 	
 	env_iface = getenv("FREEBIND_IFACE");
+	char *type = getenv("FREEBIND_TYPE_FILTER");
+	if(type != NULL && strcasecmp(type, "dgram") == 0)
+	{
+		type_filter = SOCK_DGRAM;
+	}
+	if(type != NULL && strcasecmp(type, "stream") == 0)
+	{
+		type_filter = SOCK_STREAM;
+	}
 	
 	env_bind_entrypoint = getenv("FREEBIND_ENTRYPOINT");
 	if(env_bind_entrypoint != NULL && strcasecmp("connect", env_bind_entrypoint) == 0)
@@ -92,11 +102,24 @@ void freebind(int result)
 	socklen_t optlen = sizeof(int);
 	if(getsockopt(result, SOL_SOCKET, SO_DOMAIN, &domain, &optlen) != 0)
 	{
-		perror("Freebind: Failed to determine socket type");
+		perror("Freebind: Failed to determine socket domain");
 		return;
 	}
 	if(domain == PF_INET || domain == PF_INET6)
 	{
+		if(type_filter != 0)
+		{
+			int type;
+			if(getsockopt(result, SOL_SOCKET, SO_TYPE, &type, &optlen) != 0)
+			{
+				perror("Freebind: Failed to determine socket type");
+				return;
+			}
+			if((type & type_filter) == 0)
+			{
+				return;
+			}
+		}
 		const int enable = 1;
 		if(setsockopt(result, SOL_IP, IP_FREEBIND, &enable, sizeof(enable)) != 0)
 		{
@@ -138,6 +161,11 @@ int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 	if(!original_connect)
 	{
 		original_connect = dlsym(RTLD_NEXT, "connect");
+		if(original_connect == NULL)
+		{
+			fprintf(stderr, "Freebind: Error resolving original connect method: %s\n", dlerror());
+			exit(1);
+		}
 	}
 	if(bind_upon_connect)
 	{
@@ -151,6 +179,11 @@ int socket(int domain, int type, int protocol)
 	if(!original_socket)
 	{
 		original_socket = dlsym(RTLD_NEXT, "socket");
+		if(original_socket == NULL)
+		{
+			fprintf(stderr, "Error resolving original socket method: %s\n", dlerror());
+			exit(1);
+		}
 	}
 	int result = original_socket(domain, type, protocol);
 	if(!bind_upon_connect)
