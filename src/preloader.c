@@ -14,7 +14,8 @@
 static int help(char *name)
 {
 	fprintf(stderr, "Usage: %s [options] program [arguments]\n"
-			"  -r  --random  IPv4 or IPv6 network in CIDR notation.\n", name);
+			"  -r  --random  IPv4 or IPv6 network in CIDR notation.\n"
+			"  -t  --type    Only apply to the specified socket type. Either STREAM or DGRAM.\n", name);
 	return EXIT_FAILURE;
 }
 
@@ -29,6 +30,7 @@ int main(int argc, char **argv)
 	static struct option long_options[] =
 	{
 		{"random", required_argument, 0, 'r'},
+		{"type", required_argument, 0, 't'},
 		{0, 0, 0, 0}
 	};
 
@@ -39,17 +41,32 @@ int main(int argc, char **argv)
 
 	buf[0] = 0;
 	opterr = 0;
-	while((opt = getopt_long(argc, argv, "r:", long_options, &option_index)) != -1)
+	while((opt = getopt_long(argc, argv, "r:t:", long_options, &option_index)) != -1)
 	{
 		switch(opt)
 		{
-			 case 'r':
-				 buflen = strlen(buf);
-				 snprintf(buf + buflen, sizeof(buf) - buflen, "%s ", optarg);
-				 break;
+			case 'r':
+				buflen = strlen(buf);
+				snprintf(buf + buflen, sizeof(buf) - buflen, "%s ", optarg);
+				break;
+			case 't':
+				if(strcasecmp(optarg, "stream") == 0)
+				{
+					putenv("FREEBIND_TYPE_FILTER=STREAM");
+				}
+				else if(strcasecmp(optarg, "dgram") == 0)
+				{
+					putenv("FREEBIND_TYPE_FILTER=DGRAM");
+				}
+				else
+				{
+					fprintf(stderr, "Invalid filter type.\n");
+					exit(1);
+				}
+				break;
 			default:
-				 optind -= 1;
-				 goto endwhile;
+				optind -= 1;
+				goto endwhile;
 		}
 	}
 endwhile:
