@@ -98,7 +98,10 @@ void freebind(int result)
 	if(domain == PF_INET || domain == PF_INET6)
 	{
 		const int enable = 1;
-		setsockopt(result, SOL_IP, IP_FREEBIND, &enable, sizeof(enable));
+		if(setsockopt(result, SOL_IP, IP_FREEBIND, &enable, sizeof(enable)) != 0)
+		{
+			perror("Freebind: Failed to set IP_FREEBIND socket option");
+		}
 
 		buffer_t *socket_cidrs = &socket_cidrs_ipv4;
 		if(domain == PF_INET6)
