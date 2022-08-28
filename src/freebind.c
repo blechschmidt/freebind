@@ -9,9 +9,7 @@
 #include "list.h"
 #include "cidr.h"
 
-char *env_random;
 char *env_iface;
-char *env_bind_entrypoint;
 buffer_t socket_cidrs_ipv4;
 buffer_t socket_cidrs_ipv6;
 int bind_upon_connect = 0;
@@ -36,6 +34,9 @@ void __attribute__((destructor))  cleanup()
 void __attribute__((constructor)) initialize()
 {
 	struct timespec ts;
+	char *env_random;
+	char *env_bind_entrypoint;
+
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	srand(ts.tv_sec + ts.tv_nsec);
 	
@@ -78,6 +79,7 @@ void __attribute__((constructor)) initialize()
 			single_list_push_back(cidr_list_ipv6, cidr);
 		}
 	}
+	free(env_random);
 	socket_cidrs_ipv4 = single_list_to_array(cidr_list_ipv4);
 	single_list_free(cidr_list_ipv4);
 	socket_cidrs_ipv6 = single_list_to_array(cidr_list_ipv6);
@@ -119,6 +121,7 @@ void freebind(int result)
 		{
 			struct ifreq ifr;
 			strncpy(ifr.ifr_name, env_iface, sizeof(ifr.ifr_name));
+			ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = 0;
 			if(setsockopt(result, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0)
 			{
 				perror("Freebind: Failed to bind to device");
