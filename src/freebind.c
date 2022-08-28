@@ -47,17 +47,21 @@ void __attribute__((constructor)) initialize()
 		bind_upon_connect = 1;
 	}
 
-	env_random = getenv("FREEBIND_RANDOM");
-	if(env_random == NULL)
+	char *tenv_random = getenv("FREEBIND_RANDOM");
+	if(tenv_random == NULL)
 	{
 		return;
 	}
+
+	// Copy because strtok_r modifies the string, which would break the environment for child processes
+	env_random = safe_malloc(strlen(tenv_random) + 1);
+	strcpy(env_random, tenv_random);
 
 	single_list_t* cidr_list_ipv4 = single_list_new();
 	single_list_t* cidr_list_ipv6 = single_list_new();
 	char *token;
 	char *remaining = env_random;
-	while((token = strtok_r(remaining, ", ", &remaining)))
+	for (token = strtok_r(remaining, ", ", &remaining); token != NULL; token = strtok_r(NULL, ", ", &remaining))
 	{
 		cidr_t *cidr = safe_malloc(sizeof(*cidr));
 		if(!cidr_from_string(cidr, token))
