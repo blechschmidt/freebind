@@ -18,9 +18,18 @@ ip -6 route add local 2a00:1450:4001:81b::/64 dev lo
 ### Example
 Having set up AnyIP, the following command will bind wget's internal socket to a random address from the specified subnet:
 ```
-freebind -r 2a00:1450:4001:81b::/64 wget -qO- ipv6.wtfismyip.com/text
+freebind -r 2a00:1450:4001:81b::/64 -- wget -qO- ipv6.wtfismyip.com/text
 ```
 In practice, running this command multiple times will yield a new IP address every time.
+
+#### Crawling with curl
+You can use new versions of curl (tested with 7.87.0) with freebind to bypass web server rate limits as follows:
+```
+freebind -r 2a00:1450:4001:81b::/64 -- curl --http1.1 -6 -H "Connection: close" --parallel --parallel-immediate --parallel-max 100 --config config.txt
+```
+In the above example, `config.txt` contains the URLs you wish to crawl in the curl config format, e.g. `url = "https://ipv6.wtfismyip.com/text"`. Consult the curl man page for more information on the format. Since curl cannot be explicitly configured to use a new socket for each request, we leverage the `Connection: close` header, which is only supported by HTTP/1.1. Alternatively, HTTP/1.0 could be used.
+
+Note that freebind does not work with statically linked binaries in general, including those that can be downloaded from the curl website.
 
 ### UDP per packet randomization
 The `freebind` program is only suitable for assigning one IP address per socket. It will not assign a random IP address per packet. Therefore, `packetrand` making use of the netfilter API is included for use in scenarios that require a fresh IP address per outgoing packet.
