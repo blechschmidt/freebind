@@ -58,7 +58,7 @@ In this case, all outgoing UDP packets that are handled by the queue have their 
 
 ### References
 - [The scary state of IPv6 rate-limiting, A. Pritchard, 2022](https://adam-p.ca/blog/2022/02/ipv6-rate-limiting/)
-- [Exploring The State of Rate Limiting ing IPv6, P. Heijningen, 2023](http://essay.utwente.nl/96014/1/van%20Heijningen_BA_EEMCS.pdf)
+- [Exploring The State of Rate Limiting in IPv6, P. Heijningen, 2023](http://essay.utwente.nl/96014/1/van%20Heijningen_BA_EEMCS.pdf)
 
 ### Notes
 The application will only work if your internet service provider provides you with a routed prefix.
