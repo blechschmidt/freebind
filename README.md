@@ -62,3 +62,4 @@ The application will only work if your internet service provider provides you wi
 ## References
 - [The scary state of IPv6 rate-limiting, A. Pritchard, 2022](https://adam-p.ca/blog/2022/02/ipv6-rate-limiting/)
 - [Exploring The State of Rate Limiting in IPv6, P. Heijningen, 2023](http://essay.utwente.nl/96014/1/van%20Heijningen_BA_EEMCS.pdf)
+- [Hack Red Con 2023 - Abusing IPv6 on the Public Internet, TheTechRomancer](https://youtu.be/6ibqE2Il1R8?t=835)
